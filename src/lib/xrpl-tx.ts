@@ -233,7 +233,6 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
           base = mutationData.receive.currency
           counter = mutationData.send.currency
           volume = mutationData.receive.amount
-          console.log(r)
         } else {
           action = 'SELL'
           base = mutationData.send.currency

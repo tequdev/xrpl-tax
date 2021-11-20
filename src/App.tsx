@@ -25,9 +25,9 @@ import { useWindowDimensions } from './Hooks/useWindowDimensions'
 import { Header } from './Header'
 import { Table, Thead, Tbody, Tr, Th, Td } from './Table'
 import { Footer } from './Footer'
+import { _sleep } from './utils/sleep'
 
 const localStrageAddressKey = 'xrpl.address.tax.address'
-const localStrageTxDataKey = 'xrpl.address.tax.txData'
 
 export const App = () => {
   const app = client
@@ -39,10 +39,11 @@ export const App = () => {
   )
   // Accouunt Tx
   const [accountTx, setAccountTx] = useState<(Response & { use: boolean })[]>(
-    localStorage.getItem(localStrageTxDataKey)
-      ? JSON.parse(localStorage.getItem(localStrageTxDataKey)!)
-      : []
+    []
   )
+
+  // Price fetch count
+  const [priceFetchedCnt, setPriceFetchedCnt] = useState(0)
 
   const [canExport, setCanExport] = useState<boolean | null>(null)
 
@@ -82,44 +83,45 @@ export const App = () => {
       tmpAccountTx.push({ ...tx, use })
       setAccountTx((prevTx) => prevTx.concat([{ ...tx, use }]))
     })
-    localStorage.setItem(localStrageTxDataKey, JSON.stringify(tmpAccountTx))
     try {
       await setPrice(tmpAccountTx)
     } finally {
-      setCanExport(false)
+      setCanExport(true)
     }
   }
 
   const setPrice = async (accTx: typeof accountTx) => {
-    let rateLimit = false
+    console.log('setPrice')
+
     if (accTx.length === 0) {
       return
     }
-    const fetchPricesPromises = accTx.map(async (tx) => {
-      let price: string | undefined
-      if (!rateLimit) {
+    const pricedTx: typeof accountTx = accTx
+    for (let index = 0; index < accTx.length; index++) {
+      setPriceFetchedCnt(Number(index))
+      const tx = accTx[index]
+      let price = tx.Price
+      try {
         price = await fetchPrice(tx)
-        if (price === undefined) {
-          rateLimit = true
-          price = ''
-        } else {
-          price = String(price)
+      } catch (e) {
+        const limitTime = parseFloat(
+          ((e as Error).message as string)
+            .replace(/.*in /g, '')
+            .replace('sec', '')
+        )
+        await _sleep(limitTime)
+        index--
+        price = ''
+      } finally {
+        pricedTx[index] = {
+          ...tx,
+          Price: price,
         }
-      } else {
-        price = tx.Price
+        setAccountTx([...pricedTx])
       }
-      return {
-        ...tx,
-        Price: price,
-      }
-    })
+    }
 
-    const pricedAccountTx = await Promise.all(fetchPricesPromises)
-    setAccountTx([...pricedAccountTx])
-    localStorage.setItem(
-      localStrageTxDataKey,
-      JSON.stringify([...pricedAccountTx])
-    )
+    setAccountTx([...pricedTx])
   }
 
   const dispAccountTx = useMemo(() => {
@@ -176,7 +178,7 @@ export const App = () => {
     if (tx.Price) {
       return tx.Price
     }
-    const fetchIOUXRP = async (): Promise<number | undefined> => {
+    const fetchIOUXRP = async (): Promise<number> => {
       const base = `${tx.Base}`.split('.').reverse().join('+')
       const counter =
         tx.Counter === 'JPY'
@@ -187,7 +189,10 @@ export const App = () => {
         `https://data.ripple.com/v2/exchange_rates/${base}/${counter}?date=${timestamp}`
       )
       const data = await response.json()
-      return data.rate as number | undefined
+      if (!data.rate) {
+        throw new Error(data.error)
+      }
+      return data.rate as number
     }
     const fetchXRPUSD = async (ledger_index: number) => {
       return await app.getUSDXRP(ledger_index)
@@ -197,9 +202,6 @@ export const App = () => {
     }
     // fetch IOU/XRP
     const iouxrpPrice = await fetchIOUXRP()
-    if (iouxrpPrice === undefined) {
-      return iouxrpPrice
-    }
     if (tx.Counter !== 'JPY') {
       return iouxrpPrice.toString()
     }
@@ -322,6 +324,12 @@ export const App = () => {
             <Stat>
               <StatLabel>Transactions:</StatLabel>
               <StatHelpText>{dispAccountTx.length}</StatHelpText>
+              <StatLabel>LastTimestamp:</StatLabel>
+              <StatHelpText>
+                {dispAccountTx.length > 0
+                  ? dispAccountTx[dispAccountTx.length - 1].Timestamp
+                  : ''}
+              </StatHelpText>
             </Stat>
           </Box>
           <Box p="4" border="1px" borderColor="#ccc">
@@ -336,7 +344,12 @@ export const App = () => {
             <Button
               colorScheme={canExport ? 'blue' : 'gray'}
               isLoading={canExport === false}
-              disabled={!canExport}
+              loadingText={
+                accountTx.length > 0 && priceFetchedCnt > 0
+                  ? `${priceFetchedCnt} / ${accountTx.length}`
+                  : ''
+              }
+              disabled={!dispAccountTx.length}
               children={'Export(CSV)'}
             />
           </CSVLink>

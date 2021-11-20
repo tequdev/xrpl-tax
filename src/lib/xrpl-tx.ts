@@ -79,7 +79,7 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
       const accountTx = (await this.client.send({
         command: 'account_tx',
         account: this.address,
-        limit: 50,
+        limit: 10,
         marker,
       })) as AccountTx
       this.parse(accountTx, callback)

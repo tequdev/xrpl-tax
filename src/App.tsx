@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ChangeEvent, useState } from 'react'
+import { ChangeEvent, useEffect, useMemo, useState } from 'react'
 import {
   ChakraProvider,
   Box,
@@ -26,17 +26,24 @@ import { Header } from './Header'
 import { Table, Thead, Tbody, Tr, Th, Td } from './Table'
 import { Footer } from './Footer'
 
-const localStrageKey = 'xrpl.address.tax.export'
+const localStrageAddressKey = 'xrpl.address.tax.address'
+const localStrageTxDataKey = 'xrpl.address.tax.txData'
 
 export const App = () => {
   const app = client
-  const [searchAddress, setSearchAddress] = useState(
-    localStorage.getItem(localStrageKey) || ''
-  )
   const { width: winWidth } = useWindowDimensions()
-  const [accountTx, setAccountTx] = useState<(Response & { use: boolean })[]>(
-    []
+
+  // Address
+  const [searchAddress, setSearchAddress] = useState(
+    localStorage.getItem(localStrageAddressKey) || ''
   )
+  // Accouunt Tx
+  const [accountTx, setAccountTx] = useState<(Response & { use: boolean })[]>(
+    localStorage.getItem(localStrageTxDataKey)
+      ? JSON.parse(localStorage.getItem(localStrageTxDataKey)!)
+      : []
+  )
+
   const [canExport, setCanExport] = useState<boolean | null>(null)
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -46,8 +53,22 @@ export const App = () => {
     }
   }
 
+  useEffect(() => {
+    const f = async () => {
+      if (accountTx.length > 0) {
+        try {
+          await setPrice(accountTx)
+        } finally {
+          setCanExport(true)
+        }
+      }
+    }
+    f()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
-    window.localStorage.setItem(localStrageKey, searchAddress)
+    localStorage.setItem(localStrageAddressKey, searchAddress)
     await searchTx()
   }
 
@@ -55,38 +76,67 @@ export const App = () => {
     setCanExport(false)
     app.setAddress(searchAddress)
     setAccountTx([])
-    const tmpAccountT: typeof accountTx = []
+    const tmpAccountTx: typeof accountTx = []
     await app.getTx((tx) => {
       const use = true
-      tmpAccountT.push({ ...tx, use })
-      tx.Base =
+      tmpAccountTx.push({ ...tx, use })
+      setAccountTx((prevTx) => prevTx.concat([{ ...tx, use }]))
+    })
+    localStorage.setItem(localStrageTxDataKey, JSON.stringify(tmpAccountTx))
+    try {
+      await setPrice(tmpAccountTx)
+    } finally {
+      setCanExport(false)
+    }
+  }
+
+  const setPrice = async (accTx: typeof accountTx) => {
+    let rateLimit = false
+    if (accTx.length === 0) {
+      return
+    }
+    const fetchPricesPromises = accTx.map(async (tx) => {
+      let price: string | undefined
+      if (!rateLimit) {
+        price = await fetchPrice(tx)
+        if (price === undefined) {
+          rateLimit = true
+          price = ''
+        } else {
+          price = String(price)
+        }
+      } else {
+        price = tx.Price
+      }
+      return {
+        ...tx,
+        Price: price,
+      }
+    })
+
+    const pricedAccountTx = await Promise.all(fetchPricesPromises)
+    setAccountTx([...pricedAccountTx])
+    localStorage.setItem(
+      localStrageTxDataKey,
+      JSON.stringify([...pricedAccountTx])
+    )
+  }
+
+  const dispAccountTx = useMemo(() => {
+    return accountTx.map((tx) => {
+      const base =
         tx.Base.split('.').length > 1
           ? tx.Base.split('.')[1]
           : tx.Base.split('.')[0]
-      setAccountTx((prevTx) => prevTx.concat([{ ...tx, use }]))
+      const counter = tx.Price && tx.Counter === 'JPY' ? 'USD' : tx.Counter
+      return {
+        ...tx,
+        Base: base,
+        Counter: counter,
+      }
     })
+  }, [accountTx])
 
-    const pricedAccountTx = await Promise.all(
-      tmpAccountT.map(async (tx) => {
-        const price = await fetchPrice(tx)
-
-        const base =
-          tx.Base.split('.').length > 1
-            ? tx.Base.split('.')[1]
-            : tx.Base.split('.')[0]
-        const counter = price && tx.Counter === 'JPY' ? 'USD' : tx.Counter
-        return {
-          ...tx,
-          Price: price,
-          Base: base,
-          Counter: counter,
-        }
-      })
-    )
-
-    setAccountTx([...pricedAccountTx])
-    setCanExport(true)
-  }
   const headers = [
     'use',
     'timestamp',
@@ -123,7 +173,10 @@ export const App = () => {
   }
 
   const fetchPrice = async (tx: Response) => {
-    const fetchIOUXRP = async () => {
+    if (tx.Price) {
+      return tx.Price
+    }
+    const fetchIOUXRP = async (): Promise<number | undefined> => {
       const base = `${tx.Base}`.split('.').reverse().join('+')
       const counter =
         tx.Counter === 'JPY'
@@ -134,7 +187,7 @@ export const App = () => {
         `https://data.ripple.com/v2/exchange_rates/${base}/${counter}?date=${timestamp}`
       )
       const data = await response.json()
-      return data.rate as number
+      return data.rate as number | undefined
     }
     const fetchXRPUSD = async (ledger_index: number) => {
       return await app.getUSDXRP(ledger_index)
@@ -144,6 +197,9 @@ export const App = () => {
     }
     // fetch IOU/XRP
     const iouxrpPrice = await fetchIOUXRP()
+    if (iouxrpPrice === undefined) {
+      return iouxrpPrice
+    }
     if (tx.Counter !== 'JPY') {
       return iouxrpPrice.toString()
     }
@@ -171,7 +227,7 @@ export const App = () => {
       })
     return {
       header,
-      content: accountTx
+      content: dispAccountTx
         .filter((tx) => tx.use)
         .map((tx) => {
           let obj = {}
@@ -265,7 +321,7 @@ export const App = () => {
           <Box p="4" border="1px" borderColor="#ccc">
             <Stat>
               <StatLabel>Transactions:</StatLabel>
-              <StatHelpText>{accountTx.length}</StatHelpText>
+              <StatHelpText>{dispAccountTx.length}</StatHelpText>
             </Stat>
           </Box>
           <Box p="4" border="1px" borderColor="#ccc">
@@ -294,7 +350,7 @@ export const App = () => {
           >
             <TableHeader />
             <Tbody>
-              {accountTx.map((tx) => {
+              {dispAccountTx.map((tx) => {
                 return <TableContent tx={tx} key={tx.Comment} />
               })}
             </Tbody>

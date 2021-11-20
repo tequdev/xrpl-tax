@@ -79,7 +79,7 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
       const accountTx = (await this.client.send({
         command: 'account_tx',
         account: this.address,
-        limit: 10,
+        limit: 50,
         marker,
       })) as AccountTx
       this.parse(accountTx, callback)
@@ -233,7 +233,6 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
           base = mutationData.receive.currency
           counter = mutationData.send.currency
           volume = mutationData.receive.amount
-          console.log(r)
         } else {
           action = 'SELL'
           base = mutationData.send.currency

@@ -15,6 +15,14 @@ import {
   Center,
   Container,
   SimpleGrid,
+  NumberInput,
+  NumberInputField,
+  Accordion,
+  AccordionButton,
+  AccordionIcon,
+  AccordionItem,
+  AccordionPanel,
+  chakra,
 } from '@chakra-ui/react'
 import { CSVLink } from 'react-csv'
 
@@ -37,6 +45,11 @@ export const App = () => {
   const [searchAddress, setSearchAddress] = useState(
     localStorage.getItem(localStrageAddressKey) || ''
   )
+
+  const [ledgerIndex, setLedgerIndex] = useState({
+    min: null as number | null,
+    max: null as number | null,
+  })
   // Accouunt Tx
   const [accountTx, setAccountTx] = useState<(Response & { use: boolean })[]>(
     []
@@ -51,6 +64,13 @@ export const App = () => {
     switch (event.target.name) {
       case 'searchAddress':
         setSearchAddress(event.target.value)
+        break
+      case 'ledgerIndexMin':
+        setLedgerIndex({ ...ledgerIndex, min: parseInt(event.target.value) })
+        break
+      case 'ledgerIndexMax':
+        setLedgerIndex({ ...ledgerIndex, max: parseInt(event.target.value) })
+        break
     }
   }
 
@@ -76,6 +96,9 @@ export const App = () => {
   const searchTx = async () => {
     setCanExport(false)
     app.setAddress(searchAddress)
+    const ledgerIdxMin = ledgerIndex.min || -1
+    const ledgerIdxMax = ledgerIndex.max || -1
+    app.setLedgerIndex(ledgerIdxMin, ledgerIdxMax)
     setAccountTx([])
     const tmpAccountTx: typeof accountTx = []
     await app.getTx((tx) => {
@@ -91,8 +114,6 @@ export const App = () => {
   }
 
   const setPrice = async (accTx: typeof accountTx) => {
-    console.log('setPrice')
-
     if (accTx.length === 0) {
       return
     }
@@ -201,7 +222,12 @@ export const App = () => {
       return ''
     }
     // fetch IOU/XRP
-    const iouxrpPrice = await fetchIOUXRP()
+    let iouxrpPrice: number
+    if (!tx.Price) {
+      iouxrpPrice = await fetchIOUXRP()
+    } else {
+      iouxrpPrice = parseFloat(tx.Price)
+    }
     if (tx.Counter !== 'JPY') {
       return iouxrpPrice.toString()
     }
@@ -290,7 +316,7 @@ export const App = () => {
             target="_blank"
             rel="noreferrer"
           >
-            {tx.Comment.substr(0, 7)}...
+            {tx.LedgerIndex} / {tx.Comment.substr(0, 7)}...
           </a>
         </Td>
       </Tr>
@@ -312,6 +338,44 @@ export const App = () => {
           <Button m="1" onClick={handleClick}>
             検索
           </Button>
+        </Flex>
+
+        <Flex p={[0, 4]} maxWidth="460px" w="100%">
+          <Accordion allowToggle width="100%">
+            <AccordionItem>
+              <h2>
+                <AccordionButton>
+                  <Box flex="1" textAlign="left">
+                    詳細検索
+                  </Box>
+                  <AccordionIcon />
+                </AccordionButton>
+              </h2>
+              <AccordionPanel pb={4}>
+                <Flex>
+                  <NumberInput mr={1} min={0}>
+                    <NumberInputField
+                      name="ledgerIndexMin"
+                      value={ledgerIndex.min || ''}
+                      onChange={handleChange}
+                      placeholder="最小レジャー番号"
+                    />
+                  </NumberInput>
+                  <chakra.div pt="2">
+                    <chakra.span verticalAlign="baseline">〜</chakra.span>
+                  </chakra.div>
+                  <NumberInput ml={1} min={0}>
+                    <NumberInputField
+                      name="ledgerIndexMax"
+                      value={ledgerIndex.max || ''}
+                      onChange={handleChange}
+                      placeholder="最大レジャー番号"
+                    />
+                  </NumberInput>
+                </Flex>
+              </AccordionPanel>
+            </AccordionItem>
+          </Accordion>
         </Flex>
         <SimpleGrid py={2} maxW="1200px" columns={[1, 1, 3]} spacing="4">
           <Box p="4" border="1px" borderColor="#ccc">

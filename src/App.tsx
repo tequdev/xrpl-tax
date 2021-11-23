@@ -201,7 +201,12 @@ export const App = () => {
       return ''
     }
     // fetch IOU/XRP
-    const iouxrpPrice = await fetchIOUXRP()
+    let iouxrpPrice: number
+    if (!tx.Price) {
+      iouxrpPrice = await fetchIOUXRP()
+    } else {
+      iouxrpPrice = parseFloat(tx.Price)
+    }
     if (tx.Counter !== 'JPY') {
       return iouxrpPrice.toString()
     }

@@ -233,11 +233,19 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
           base = mutationData.receive.currency
           counter = mutationData.send.currency
           volume = mutationData.receive.amount
+          price = String(
+            parseFloat(mutationData.send.amount) /
+              parseFloat(mutationData.receive.amount)
+          )
         } else {
           action = 'SELL'
           base = mutationData.send.currency
           counter = mutationData.receive.currency
           volume = mutationData.send.amount
+          price = String(
+            parseFloat(mutationData.receive.amount) /
+              parseFloat(mutationData.send.amount)
+          )
         }
       } else {
         if (hasSend) {

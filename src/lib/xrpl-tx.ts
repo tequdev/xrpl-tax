@@ -59,6 +59,8 @@ interface XrplTransactionHistoryIF {
 
 class XrplTransactionHistory implements XrplTransactionHistoryIF {
   private address: string
+  private ledger_index_min: number = -1
+  private ledger_index_max: number = -1
   private client: XrplClient
   constructor(address: string, client: typeof XrplClient = XrplClient) {
     this.address = address
@@ -73,12 +75,19 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
     this.address = address
   }
 
+  setLedgerIndex(min: number, max: number) {
+    this.ledger_index_min = min
+    this.ledger_index_max = max
+  }
+
   getTx = async (callback: (value: Response) => void) => {
     let marker: string | undefined = undefined
     do {
       const accountTx = (await this.client.send({
         command: 'account_tx',
         account: this.address,
+        ledger_index_min: this.ledger_index_min,
+        ledger_index_max: this.ledger_index_max,
         limit: 10,
         marker,
       })) as AccountTx

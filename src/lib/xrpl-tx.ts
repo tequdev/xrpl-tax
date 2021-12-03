@@ -194,7 +194,7 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
         cb(this.createReturnValue(r, { base, action, counter }))
         return
       }
-
+      console.log(r)
       const mutationData = {
         send: {
           state: false,
@@ -209,6 +209,10 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
       }
       mutations.forEach((mutation) => {
         let type: 'receive' | 'send'
+        if (Number(mutation.value) === Number(tx.Fee) / 1000000 * (-1)) {
+          // skip if fee mutation
+          return
+        }
         if (Number(mutation.value) > 0) {
           type = 'receive'
         } else {

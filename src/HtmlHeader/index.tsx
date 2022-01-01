@@ -2,7 +2,7 @@ import React from 'react'
 import Helmet from 'react-helmet'
 
 export const HtmlHeader = () => {
-  const id = process.env.GOOGLE_ANALYTICS_ID
+  const id = process.env.REACT_APP_GOOGLE_ANALYTICS_ID
   return (
     <Helmet
       htmlAttributes={{

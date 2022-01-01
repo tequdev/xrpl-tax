@@ -34,6 +34,7 @@ import { Header } from './Header'
 import { Table, Thead, Tbody, Tr, Th, Td } from './Table'
 import { Footer } from './Footer'
 import { _sleep } from './utils/sleep'
+import { convertToCryptact } from './lib/cryptactCurrency'
 
 const localStrageAddressKey = 'xrpl.address.tax.address'
 
@@ -149,7 +150,8 @@ export const App = () => {
     return accountTx.map((tx) => {
       const base =
         tx.Base.split('.').length > 1
-          ? tx.Base.split('.')[1]
+          ? convertToCryptact(tx.Base.split('.')[0], tx.Base.split('.')[1]) ??
+            tx.Base.split('.')[1]
           : tx.Base.split('.')[0]
       const counter = tx.Price && tx.Counter === 'JPY' ? 'USD' : tx.Counter
       return {
@@ -282,7 +284,7 @@ export const App = () => {
       )
     }
     return (
-      <Tr>
+      <Tr key={tx['Comment']}>
         {/* use */}
         <Td>
           <Checkbox isChecked={tx.use} onChange={onChangeCheck} />

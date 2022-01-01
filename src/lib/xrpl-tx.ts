@@ -127,7 +127,7 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
       Price: price,
       Counter: counter, //currency === 'XRP' ? 'JPY' : 'XRP',
       Fee: isFeeTx ? 0 : fee,
-      FeeCcy: 'XRP',
+      FeeCcy: isFeeTx || fee === 0 ? 'JPY' : 'XRP',
       Comment: tx.tx.hash,
       TransactionType: tx.tx.TransactionType,
       LedgerIndex: tx.tx.inLedger,

@@ -220,7 +220,7 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
         }
         const currency = !mutation.issuer
           ? 'XRP'
-          : `${mutation.issuer}.${convertCurrency(mutation.currency)}`
+          : `${mutation.issuer}.${mutation.currency}`
         const amount = mutation.value.replace('-', '')
 
         mutationData[type].state = true
@@ -314,12 +314,4 @@ const formatDate = (d: Date) => {
     d.getMonth() + 1
   }/${d.getDate()} ${d.getHours()}:${d.getMinutes()}` //.padStart(2, "0")
     .replace(/\n|\r/g, '')
-}
-
-function convertCurrency(currency: string) {
-  if (currency.length > 3) {
-    return hex2string(currency).replace(/\0/g, '')
-  } else {
-    return currency
-  }
 }

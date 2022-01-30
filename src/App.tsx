@@ -280,7 +280,7 @@ export const App = () => {
   }
   
   const convertCurrency = (currency: string) => {
-    if (currency.length > 3) {
+    if (currency.length > 30) {
       return hex2string(currency).replace(/\0/g, '')
     } else {
       return currency

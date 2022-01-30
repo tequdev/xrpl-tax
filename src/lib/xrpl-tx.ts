@@ -194,7 +194,7 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
         cb(this.createReturnValue(r, { base, action, counter }))
         return
       }
-      console.log(r)
+
       const mutationData = {
         send: {
           state: false,

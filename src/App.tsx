@@ -35,6 +35,7 @@ import { Table, Thead, Tbody, Tr, Th, Td } from './Table'
 import { Footer } from './Footer'
 import { _sleep } from './utils/sleep'
 import { convertToCryptact } from './lib/cryptactCurrency'
+import { hex2string } from './lib/hex-to-string'
 
 const localStrageAddressKey = 'xrpl.address.tax.address'
 
@@ -266,11 +267,23 @@ export const App = () => {
               return t.toUpperCase() === h.toUpperCase()
             })
             if (isCsvExistsKey) {
-              obj = { ...obj, [t]: String(tx[t as keyof typeof tx]) }
+              obj = {
+                ...obj,
+                [t]: String(tx[t as keyof typeof tx]),
+                Base: convertCurrency(String(tx['Base'])),
+              }
             }
           }
           return obj
         }),
+    }
+  }
+  
+  const convertCurrency = (currency: string) => {
+    if (currency.length > 30) {
+      return hex2string(currency).replace(/\0/g, '')
+    } else {
+      return currency
     }
   }
 
@@ -296,7 +309,7 @@ export const App = () => {
         {/* source */}
         {/* <Td>{tx.Source}</Td> */}
         {/* base */}
-        <Td textAlign="center">{tx.Base}</Td>
+        <Td textAlign="center">{convertCurrency(tx.Base)}</Td>
         {/* derivType */}
         {/* <Td>{tx.DerivType}</Td> */}
         {/* derivDetails */}

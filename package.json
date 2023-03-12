@@ -16,7 +16,7 @@
     "typescript": "^4.3.5",
     "web-vitals": "^0.2.2",
     "xrpl": "^2.0.1",
-    "xrpl-client": "^1.9.2"
+    "xrpl-client": "^2.0.5"
   },
   "scripts": {
     "start": "react-scripts start",

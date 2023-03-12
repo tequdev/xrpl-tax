@@ -13312,10 +13312,10 @@
   "resolved" "https://registry.npmjs.org/xmlchars/-/xmlchars-2.2.0.tgz"
   "version" "2.2.0"
 
-"xrpl-client@^1.9.2":
-  "integrity" "sha512-foFrFqfYxpkj8La9k1G9ZJEbVOHJpvIIt0koNaw/3nlTUUnbyTENtr112CnHEh+z2JMqJxBB9JpmZavGDhMlKg=="
-  "resolved" "https://registry.npmjs.org/xrpl-client/-/xrpl-client-1.9.2.tgz"
-  "version" "1.9.2"
+"xrpl-client@^2.0.5":
+  "integrity" "sha512-N3w2Bryh3sRtaVuMMRChjopnKSeAn9wsxyDn6DlYZG57AAe/dLdXns3rHFxE19wLcnsp7rAeFdYdkdNaPK9gFw=="
+  "resolved" "https://registry.npmjs.org/xrpl-client/-/xrpl-client-2.0.5.tgz"
+  "version" "2.0.5"
   dependencies:
     "debug" "^4.1.1"
     "websocket" "^1.0.34"

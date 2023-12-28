@@ -36,11 +36,13 @@ import { Footer } from './Footer'
 import { _sleep } from './utils/sleep'
 import { convertToCryptact } from './lib/cryptactCurrency'
 import { hex2string } from './lib/hex-to-string'
+import { TableVirtuoso, VirtuosoHandle } from 'react-virtuoso'
 
 const localStrageAddressKey = 'xrpl.address.tax.address'
 
 export const App = () => {
   const app = client
+  const ref = React.useRef<VirtuosoHandle>(null)
   const { width: winWidth } = useWindowDimensions()
 
   // Address
@@ -68,10 +70,16 @@ export const App = () => {
         setSearchAddress(event.target.value)
         break
       case 'ledgerIndexMin':
-        setLedgerIndex({ ...ledgerIndex, min: parseInt(event.target.value) })
+        setLedgerIndex({
+          ...ledgerIndex,
+          min: parseFloat(event.target.value.replaceAll(',', '')),
+        })
         break
       case 'ledgerIndexMax':
-        setLedgerIndex({ ...ledgerIndex, max: parseInt(event.target.value) })
+        setLedgerIndex({
+          ...ledgerIndex,
+          max: parseFloat(event.target.value.replaceAll(',', '')),
+        })
         break
     }
   }
@@ -129,12 +137,14 @@ export const App = () => {
       } catch (e) {
         const limitTime = parseFloat(
           ((e as Error).message as string)
-            .replace(/.*in /g, '')
-            .replace('sec', '')
+          .replace(/.*in /g, '')
+          .replace('sec', '')
         )
-        await _sleep(limitTime)
-        index--
-        price = ''
+        if (!Number.isNaN(limitTime)) { 
+          await _sleep(limitTime)
+          index--
+          price = ''
+        }
       } finally {
         pricedTx[index] = {
           ...tx,
@@ -154,10 +164,12 @@ export const App = () => {
           ? convertToCryptact(tx.Base.split('.')[0], tx.Base.split('.')[1]) ??
             tx.Base.split('.')[1]
           : tx.Base.split('.')[0]
+      const baseIssuer = tx.Base.split('.').length > 1 ? tx.Base.split('.')[0] : ''
       const counter = tx.Price && tx.Counter === 'JPY' ? 'USD' : tx.Counter
       return {
         ...tx,
         Base: base,
+        BaseIssuer: baseIssuer,
         Counter: counter,
       }
     })
@@ -184,17 +196,13 @@ export const App = () => {
       return !['source', 'derivType', 'derivDetails'].some((t) => t === h)
     })
     return (
-      <Thead>
-        <Tr>
-          {header.map((h, index) => {
-            return (
-              <Th textAlign="center" key={index}>
-                {h}
-              </Th>
-            )
-          })}
-        </Tr>
-      </Thead>
+      <Tr>
+        {header.map((h, index) => (
+            <Th textAlign="center" key={index}>
+              {h}
+            </Th>
+        ))}
+      </Tr>
     )
   }
 
@@ -267,10 +275,16 @@ export const App = () => {
               return t.toUpperCase() === h.toUpperCase()
             })
             if (isCsvExistsKey) {
+              const baseCurrency = convertCurrency(String(tx['Base']))
+              const baseIssuer = tx.BaseIssuer
               obj = {
                 ...obj,
                 [t]: String(tx[t as keyof typeof tx]),
-                Base: convertCurrency(String(tx['Base'])),
+                // Base: convertCurrency(String(tx['Base'])),
+                Base:
+                  baseCurrency === 'USD'
+                    ? `USER-${baseCurrency}#${baseIssuer.toUpperCase()}`
+                    : baseCurrency,
               }
             }
           }
@@ -278,7 +292,7 @@ export const App = () => {
         }),
     }
   }
-  
+
   const convertCurrency = (currency: string) => {
     if (currency.length > 30) {
       return hex2string(currency).replace(/\0/g, '')
@@ -297,7 +311,7 @@ export const App = () => {
       )
     }
     return (
-      <Tr key={tx['Comment']}>
+      <>
         {/* use */}
         <Td>
           <Checkbox isChecked={tx.use} onChange={onChangeCheck} />
@@ -327,14 +341,14 @@ export const App = () => {
         {/* comment */}
         <Td>
           <a
-            href={'https://xrpscan.com/tx/' + tx.Comment}
+            href={'https://xrpscan.com/tx/' + tx.Comment.split(' /')[0]}
             target="_blank"
             rel="noreferrer"
           >
             {tx.LedgerIndex} / {tx.Comment.substr(0, 7)}...
           </a>
         </Td>
-      </Tr>
+      </>
     )
   }
 
@@ -435,7 +449,7 @@ export const App = () => {
         </Center>
         {/* 取引履歴 */}
         <Stack pt="6" minHeight="400px" w="100%">
-          <Table
+          {/* <Table
             size={1440 > winWidth ? 'xs' : 'md'}
             fontSize="12"
             variant="striped"
@@ -444,12 +458,37 @@ export const App = () => {
             <Tbody>
               {dispAccountTx.map((tx) => {
                 return <TableContent tx={tx} key={tx.Comment} />
-              })}
+              })} 
             </Tbody>
-          </Table>
+          </Table> */}
+          <TableVirtuoso
+            ref={ref}
+            style={{ height: 800 } as any}
+            components={{
+              Table: ({ style, children, ...props }) => (
+                <Table
+                  {...props}
+                  size={1440 > winWidth ? 'xs' : 'md'}
+                  fontSize="12"
+                  variant="striped"
+                  style={{ ...style, width: 700 }}
+                >
+                  {children}
+                </Table>
+              ),
+              // TableBody: (props) => <Tbody {...props} />,
+              TableHead: Thead,
+              TableRow: Tr,
+            }}
+            fixedHeaderContent={() => <TableHeader />}
+            data={dispAccountTx}
+            maxLength={dispAccountTx.length}
+            itemContent={(_, tx) => <TableContent tx={tx} key={tx.Comment} />}
+          />
         </Stack>
         <Footer />
       </Container>
+      {dispAccountTx.length}
     </ChakraProvider>
   )
 }

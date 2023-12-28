@@ -88,7 +88,7 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
         account: this.address,
         ledger_index_min: this.ledger_index_min,
         ledger_index_max: this.ledger_index_max,
-        limit: 10,
+        limit: 50,
         marker,
       })) as AccountTx
       this.parse(accountTx, callback)
@@ -104,15 +104,19 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
       volume = '',
       price = '',
       counter = 'XRP',
+      fee = undefined,
+      commentIndex = undefined
     }: {
       action: OutputAction
       base: string
       volume?: string
       price?: string
       counter?: string
+      fee?: number | undefined
+      commentIndex?: number | undefined
     }
   ): Response => {
-    const fee = tx.tx.Account === this.address ? Number(tx.tx.Fee) / 1000000 : 0
+    const _fee = fee !== undefined ? fee : (tx.tx.Account === this.address ? Number(tx.tx.Fee) / 1000000 : 0)
     const isFeeTx = action === 'SENDFEE'
 
     return {
@@ -123,12 +127,12 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
       Base: base,
       DerivType: '',
       DerivDetails: '',
-      Volume: isFeeTx ? `${fee}` : volume,
+      Volume: isFeeTx ? `${_fee}` : volume,
       Price: price,
       Counter: counter, //currency === 'XRP' ? 'JPY' : 'XRP',
-      Fee: isFeeTx ? 0 : fee,
-      FeeCcy: isFeeTx || fee === 0 ? 'JPY' : 'XRP',
-      Comment: tx.tx.hash,
+      Fee: isFeeTx ? 0 : _fee,
+      FeeCcy: (isFeeTx || _fee) === 0 ? 'JPY' : 'XRP',
+      Comment: tx.tx.hash  + " /" + (commentIndex !== undefined ? commentIndex : ""),
       TransactionType: tx.tx.TransactionType,
       LedgerIndex: tx.tx.inLedger,
     }
@@ -147,7 +151,8 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
         case 'PaymentChannelClaim':
         case 'PaymentChannelCreate':
         case 'PaymentChannelFund':
-        case 'DepositPreauth': {
+        case 'DepositPreauth':
+        case 'NFTokenAcceptOffer': {
           // 未対応
           const base = 'XRP'
           const counter = 'JPY'
@@ -164,7 +169,11 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
         case 'SignerListSet':
         case 'TicketCreate':
         case 'TrustSet':
-        case 'OfferCancel': {
+        case 'OfferCancel':
+        case 'NFTokenMint':
+        case 'NFTokenCreateOffer':
+        case 'NFTokenCancelOffer':
+           {
           // fee only
           const base = 'XRP'
           const counter = 'JPY'
@@ -198,11 +207,13 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
       const mutationData = {
         send: {
           state: false,
+          issuer: '',
           currency: '',
           amount: '',
         },
         receive: {
           state: false,
+          issuer: '',
           currency: '',
           amount: '',
         },
@@ -224,6 +235,7 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
         const amount = mutation.value.replace('-', '')
 
         mutationData[type].state = true
+        mutationData[type].issuer = mutation.issuer || ''
         mutationData[type].currency = currency
         mutationData[type].amount = amount
       })
@@ -237,28 +249,51 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
       >
       let base: string
       let counter: string
-      let price = ''
+      let price: string | undefined = ''
       let volume: string
 
       if (hasSend && hasReceive) {
         if (mutationData.send.currency === 'XRP') {
+          // XRP => Token
           action = 'BUY'
           base = mutationData.receive.currency
           counter = mutationData.send.currency
           volume = mutationData.receive.amount
           price = String(
             parseFloat(mutationData.send.amount) /
-              parseFloat(mutationData.receive.amount)
+            parseFloat(mutationData.receive.amount)
           )
-        } else {
+        } else if (mutationData.receive.currency === 'XRP') {
+          // Token => XRP
           action = 'SELL'
           base = mutationData.send.currency
           counter = mutationData.receive.currency
           volume = mutationData.send.amount
           price = String(
             parseFloat(mutationData.receive.amount) /
-              parseFloat(mutationData.send.amount)
+            parseFloat(mutationData.send.amount)
           )
+        } else {
+          // Token => Token
+          // eslint-disable-next-line no-lone-blocks
+          {
+            action = 'BUY'
+            base = mutationData.receive.currency
+            counter = "USD"
+            volume = mutationData.receive.amount
+            price = base.endsWith('.USD') ? '1' : undefined
+            cb(this.createReturnValue(r, { base, action, counter, price, volume, commentIndex: 1 }))
+          }
+          // eslint-disable-next-line no-lone-blocks
+          {
+            action = 'SELL'
+            base = mutationData.send.currency
+            volume = mutationData.send.amount
+            counter = "USD"
+            price = base.endsWith('.USD') ? '1' : undefined
+            cb(this.createReturnValue(r, { base, action, counter, price, volume, commentIndex: 2, fee: 0 }))
+          }
+          return
         }
       } else {
         if (hasSend) {
@@ -310,8 +345,7 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
 export const client = new XrplTransactionHistory('')
 
 const formatDate = (d: Date) => {
-  return `${d.getFullYear()}/${
-    d.getMonth() + 1
-  }/${d.getDate()} ${d.getHours()}:${d.getMinutes()}` //.padStart(2, "0")
+  return `${d.getFullYear()}/${d.getMonth() + 1
+    }/${d.getDate()} ${d.getHours()}:${d.getMinutes()}` //.padStart(2, "0")
     .replace(/\n|\r/g, '')
 }

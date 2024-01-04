@@ -128,12 +128,13 @@ export const App = () => {
       return
     }
     const pricedTx: typeof accountTx = accTx
+    let apiError = false
     for (let index = 0; index < accTx.length; index++) {
       setPriceFetchedCnt(Number(index))
       const tx = accTx[index]
       let price = tx.Price
       try {
-        price = await fetchPrice(tx)
+        price = await fetchPrice(tx, apiError)
       } catch (e) {
         const limitTime = parseFloat(
           ((e as Error).message as string)
@@ -144,6 +145,8 @@ export const App = () => {
           await _sleep(limitTime)
           index--
           price = ''
+        } else {
+          apiError = true
         }
       } finally {
         pricedTx[index] = {
@@ -206,11 +209,12 @@ export const App = () => {
     )
   }
 
-  const fetchPrice = async (tx: Response) => {
+  const fetchPrice = async (tx: Response, apiError: boolean = false) => {
     if (tx.Price) {
       return tx.Price
     }
     const fetchIOUXRP = async (): Promise<number> => {
+      if (apiError) throw new Error('API Error')
       const base = `${tx.Base}`.split('.').reverse().join('+')
       const counter =
         tx.Counter === 'JPY'

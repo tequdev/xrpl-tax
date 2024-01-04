@@ -146,6 +146,7 @@ export const App = () => {
           index--
           price = ''
         } else {
+          await _sleep(0.3)
           apiError = true
         }
       } finally {

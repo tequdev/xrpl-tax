@@ -15,6 +15,7 @@ import {
   Center,
   Container,
   SimpleGrid,
+  Select,
   NumberInput,
   NumberInputField,
   Accordion,
@@ -37,6 +38,7 @@ import { _sleep } from './utils/sleep'
 import { convertToCryptact } from './lib/cryptactCurrency'
 import { hex2string } from './lib/hex-to-string'
 import { TableVirtuoso, VirtuosoHandle } from 'react-virtuoso'
+import { ledger_data, ledger_data_keys } from './utils/ledger_date'
 
 const localStrageAddressKey = 'xrpl.address.tax.address'
 
@@ -51,8 +53,8 @@ export const App = () => {
   )
 
   const [ledgerIndex, setLedgerIndex] = useState({
-    min: null as number | null,
-    max: null as number | null,
+    min: ledger_data['2023-01-01'] as number | null,
+    max: ledger_data['2024-01-01'] as number | null,
   })
   // Accouunt Tx
   const [accountTx, setAccountTx] = useState<(Response & { use: boolean })[]>(
@@ -64,7 +66,9 @@ export const App = () => {
 
   const [canExport, setCanExport] = useState<boolean | null>(null)
 
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (
+    event: ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     switch (event.target.name) {
       case 'searchAddress':
         setSearchAddress(event.target.value)
@@ -106,7 +110,7 @@ export const App = () => {
   const searchTx = async () => {
     setCanExport(false)
     app.setAddress(searchAddress)
-    const ledgerIdxMin = ledgerIndex.min || -1
+    const ledgerIdxMin = ledgerIndex.min ? ledgerIndex.min - 1 : -1
     const ledgerIdxMax = ledgerIndex.max || -1
     app.setLedgerIndex(ledgerIdxMin, ledgerIdxMax)
     setAccountTx([])
@@ -138,10 +142,10 @@ export const App = () => {
       } catch (e) {
         const limitTime = parseFloat(
           ((e as Error).message as string)
-          .replace(/.*in /g, '')
-          .replace('sec', '')
+            .replace(/.*in /g, '')
+            .replace('sec', '')
         )
-        if (!Number.isNaN(limitTime)) { 
+        if (!Number.isNaN(limitTime)) {
           await _sleep(limitTime)
           index--
           price = ''
@@ -168,7 +172,8 @@ export const App = () => {
           ? convertToCryptact(tx.Base.split('.')[0], tx.Base.split('.')[1]) ??
             tx.Base.split('.')[1]
           : tx.Base.split('.')[0]
-      const baseIssuer = tx.Base.split('.').length > 1 ? tx.Base.split('.')[0] : ''
+      const baseIssuer =
+        tx.Base.split('.').length > 1 ? tx.Base.split('.')[0] : ''
       const counter = tx.Price && tx.Counter === 'JPY' ? 'USD' : tx.Counter
       return {
         ...tx,
@@ -202,9 +207,9 @@ export const App = () => {
     return (
       <Tr>
         {header.map((h, index) => (
-            <Th textAlign="center" key={index}>
-              {h}
-            </Th>
+          <Th textAlign="center" key={index}>
+            {h}
+          </Th>
         ))}
       </Tr>
     )
@@ -218,9 +223,7 @@ export const App = () => {
       if (apiError) throw new Error('API Error')
       const base = `${tx.Base}`.split('.').join('_')
       const counter =
-        tx.Counter === 'JPY'
-          ? 'XRP'
-          : `${tx.Counter}`.split('.').join('_')
+        tx.Counter === 'JPY' ? 'XRP' : `${tx.Counter}`.split('.').join('_')
       const timestamp = `${tx.ts}`
       const response = await fetch(
         `https://data.xrplf.org/v1/iou/exchange_rates/${base}/${counter}?date=${timestamp}`
@@ -380,32 +383,44 @@ export const App = () => {
               <h2>
                 <AccordionButton>
                   <Box flex="1" textAlign="left">
-                    詳細検索
+                    詳細検索 (JST)
                   </Box>
                   <AccordionIcon />
                 </AccordionButton>
               </h2>
               <AccordionPanel pb={4}>
                 <Flex>
-                  <NumberInput mr={1} min={0}>
-                    <NumberInputField
-                      name="ledgerIndexMin"
-                      value={ledgerIndex.min || ''}
-                      onChange={handleChange}
-                      placeholder="最小レジャー番号"
-                    />
-                  </NumberInput>
+                  <Select
+                    defaultValue={ledger_data['2023-01-01']}
+                    placeholder="開始日"
+                    name="ledgerIndexMin"
+                    onChange={handleChange}
+                  >
+                    {ledger_data_keys.map((key) => (
+                      <option key={key} value={ledger_data[key]}>
+                        {key}
+                      </option>
+                    ))}
+                  </Select>
                   <chakra.div pt="2">
                     <chakra.span verticalAlign="baseline">〜</chakra.span>
                   </chakra.div>
-                  <NumberInput ml={1} min={0}>
-                    <NumberInputField
-                      name="ledgerIndexMax"
-                      value={ledgerIndex.max || ''}
-                      onChange={handleChange}
-                      placeholder="最大レジャー番号"
-                    />
-                  </NumberInput>
+                  <Select
+                    defaultValue={ledger_data['2024-01-01']}
+                    placeholder="終了日"
+                    name="ledgerIndexMax"
+                    onChange={handleChange}
+                  >
+                    {ledger_data_keys.slice(1).map((key) => {
+                      const displayDate = new Date(key)
+                      displayDate.setDate(displayDate.getDate() - 1)
+                      return (
+                        <option key={key} value={ledger_data[key]}>
+                          {displayDate.toISOString().split('T')[0]}
+                        </option>
+                      )
+                    })}
+                  </Select>
                 </Flex>
               </AccordionPanel>
             </AccordionItem>

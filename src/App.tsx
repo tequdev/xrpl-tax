@@ -216,14 +216,14 @@ export const App = () => {
     }
     const fetchIOUXRP = async (): Promise<number> => {
       if (apiError) throw new Error('API Error')
-      const base = `${tx.Base}`.split('.').reverse().join('+')
+      const base = `${tx.Base}`.split('.').join('_')
       const counter =
         tx.Counter === 'JPY'
           ? 'XRP'
-          : `${tx.Counter}`.split('.').reverse().join('+')
+          : `${tx.Counter}`.split('.').join('_')
       const timestamp = `${tx.ts}`
       const response = await fetch(
-        `https://data.ripple.com/v2/exchange_rates/${base}/${counter}?date=${timestamp}`
+        `https://data.xrplf.org/v1/iou/exchange_rates/${base}/${counter}?date=${timestamp}`
       )
       const data = await response.json()
       if (!data.rate) {

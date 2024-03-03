@@ -151,8 +151,7 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
         case 'PaymentChannelClaim':
         case 'PaymentChannelCreate':
         case 'PaymentChannelFund':
-        case 'DepositPreauth':
-        case 'NFTokenAcceptOffer': {
+        case 'DepositPreauth': {
           // 未対応
           const base = 'XRP'
           const counter = 'JPY'
@@ -162,7 +161,6 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
           })
           return
         }
-
         case 'AccountDelete':
         case 'AccountSet':
         case 'SetRegularKey':
@@ -170,7 +168,6 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
         case 'TicketCreate':
         case 'TrustSet':
         case 'OfferCancel':
-        case 'NFTokenMint':
         case 'NFTokenCreateOffer':
         case 'NFTokenCancelOffer':
            {
@@ -180,16 +177,34 @@ class XrplTransactionHistory implements XrplTransactionHistoryIF {
           const action = 'SENDFEE'
           cb(this.createReturnValue(r, { base, action, counter }))
           return
-        }
-
+          }
+        case 'NFTokenMint':
+          {
+            // skip if Authorized Mint
+            if (tx.Account !== this.address && tx.Issuer === this.address)
+              return
+            // fee only
+            const base = 'XRP'
+            const counter = 'JPY'
+            const action = 'SENDFEE'
+            cb(this.createReturnValue(r, { base, action, counter }))
+            return 82418521
+          }
         case 'Payment':
         case 'OfferCreate':
+        case 'NFTokenAcceptOffer': 
           break
       }
 
       const mutations =
         getBalanceChanges(meta).find((bc) => bc.account === this.address)
           ?.balances || []
+      
+      if (tx.TransactionType === 'NFTokenAcceptOffer') {
+        if (mutations.length === 0)
+          // skip if no change to account balance
+          return
+      }
 
       if (
         tx.TransactionType === 'OfferCreate' &&

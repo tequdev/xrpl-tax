@@ -15,6 +15,7 @@ import {
   Center,
   Container,
   SimpleGrid,
+  Select,
   NumberInput,
   NumberInputField,
   Accordion,
@@ -36,11 +37,14 @@ import { Footer } from './Footer'
 import { _sleep } from './utils/sleep'
 import { convertToCryptact } from './lib/cryptactCurrency'
 import { hex2string } from './lib/hex-to-string'
+import { TableVirtuoso, VirtuosoHandle } from 'react-virtuoso'
+import { ledger_data, ledger_data_keys } from './utils/ledger_date'
 
 const localStrageAddressKey = 'xrpl.address.tax.address'
 
 export const App = () => {
   const app = client
+  const ref = React.useRef<VirtuosoHandle>(null)
   const { width: winWidth } = useWindowDimensions()
 
   // Address
@@ -49,8 +53,8 @@ export const App = () => {
   )
 
   const [ledgerIndex, setLedgerIndex] = useState({
-    min: null as number | null,
-    max: null as number | null,
+    min: ledger_data['2023-01-01'] as number | null,
+    max: ledger_data['2024-01-01'] as number | null,
   })
   // Accouunt Tx
   const [accountTx, setAccountTx] = useState<(Response & { use: boolean })[]>(
@@ -62,16 +66,24 @@ export const App = () => {
 
   const [canExport, setCanExport] = useState<boolean | null>(null)
 
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (
+    event: ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     switch (event.target.name) {
       case 'searchAddress':
         setSearchAddress(event.target.value)
         break
       case 'ledgerIndexMin':
-        setLedgerIndex({ ...ledgerIndex, min: parseInt(event.target.value) })
+        setLedgerIndex({
+          ...ledgerIndex,
+          min: parseFloat(event.target.value.replaceAll(',', '')),
+        })
         break
       case 'ledgerIndexMax':
-        setLedgerIndex({ ...ledgerIndex, max: parseInt(event.target.value) })
+        setLedgerIndex({
+          ...ledgerIndex,
+          max: parseFloat(event.target.value.replaceAll(',', '')),
+        })
         break
     }
   }
@@ -98,7 +110,7 @@ export const App = () => {
   const searchTx = async () => {
     setCanExport(false)
     app.setAddress(searchAddress)
-    const ledgerIdxMin = ledgerIndex.min || -1
+    const ledgerIdxMin = ledgerIndex.min ? ledgerIndex.min - 1 : -1
     const ledgerIdxMax = ledgerIndex.max || -1
     app.setLedgerIndex(ledgerIdxMin, ledgerIdxMax)
     setAccountTx([])
@@ -120,21 +132,27 @@ export const App = () => {
       return
     }
     const pricedTx: typeof accountTx = accTx
+    let apiError = false
     for (let index = 0; index < accTx.length; index++) {
       setPriceFetchedCnt(Number(index))
       const tx = accTx[index]
       let price = tx.Price
       try {
-        price = await fetchPrice(tx)
+        price = await fetchPrice(tx, apiError)
       } catch (e) {
         const limitTime = parseFloat(
           ((e as Error).message as string)
             .replace(/.*in /g, '')
             .replace('sec', '')
         )
-        await _sleep(limitTime)
-        index--
-        price = ''
+        if (!Number.isNaN(limitTime)) {
+          await _sleep(limitTime)
+          index--
+          price = ''
+        } else {
+          await _sleep(0.3)
+          apiError = true
+        }
       } finally {
         pricedTx[index] = {
           ...tx,
@@ -154,10 +172,13 @@ export const App = () => {
           ? convertToCryptact(tx.Base.split('.')[0], tx.Base.split('.')[1]) ??
             tx.Base.split('.')[1]
           : tx.Base.split('.')[0]
+      const baseIssuer =
+        tx.Base.split('.').length > 1 ? tx.Base.split('.')[0] : ''
       const counter = tx.Price && tx.Counter === 'JPY' ? 'USD' : tx.Counter
       return {
         ...tx,
         Base: base,
+        BaseIssuer: baseIssuer,
         Counter: counter,
       }
     })
@@ -184,33 +205,28 @@ export const App = () => {
       return !['source', 'derivType', 'derivDetails'].some((t) => t === h)
     })
     return (
-      <Thead>
-        <Tr>
-          {header.map((h, index) => {
-            return (
-              <Th textAlign="center" key={index}>
-                {h}
-              </Th>
-            )
-          })}
-        </Tr>
-      </Thead>
+      <Tr>
+        {header.map((h, index) => (
+          <Th textAlign="center" key={index}>
+            {h}
+          </Th>
+        ))}
+      </Tr>
     )
   }
 
-  const fetchPrice = async (tx: Response) => {
+  const fetchPrice = async (tx: Response, apiError: boolean = false) => {
     if (tx.Price) {
       return tx.Price
     }
     const fetchIOUXRP = async (): Promise<number> => {
-      const base = `${tx.Base}`.split('.').reverse().join('+')
+      if (apiError) throw new Error('API Error')
+      const base = `${tx.Base}`.split('.').join('_')
       const counter =
-        tx.Counter === 'JPY'
-          ? 'XRP'
-          : `${tx.Counter}`.split('.').reverse().join('+')
+        tx.Counter === 'JPY' ? 'XRP' : `${tx.Counter}`.split('.').join('_')
       const timestamp = `${tx.ts}`
       const response = await fetch(
-        `https://data.ripple.com/v2/exchange_rates/${base}/${counter}?date=${timestamp}`
+        `https://data.xrplf.org/v1/iou/exchange_rates/${base}/${counter}?date=${timestamp}`
       )
       const data = await response.json()
       if (!data.rate) {
@@ -267,10 +283,16 @@ export const App = () => {
               return t.toUpperCase() === h.toUpperCase()
             })
             if (isCsvExistsKey) {
+              const baseCurrency = convertCurrency(String(tx['Base']))
+              const baseIssuer = tx.BaseIssuer
               obj = {
                 ...obj,
                 [t]: String(tx[t as keyof typeof tx]),
-                Base: convertCurrency(String(tx['Base'])),
+                // Base: convertCurrency(String(tx['Base'])),
+                Base:
+                  baseCurrency === 'USD'
+                    ? `USER-${baseCurrency}#${baseIssuer.toUpperCase()}`
+                    : baseCurrency,
               }
             }
           }
@@ -278,7 +300,7 @@ export const App = () => {
         }),
     }
   }
-  
+
   const convertCurrency = (currency: string) => {
     if (currency.length > 30) {
       return hex2string(currency).replace(/\0/g, '')
@@ -297,7 +319,7 @@ export const App = () => {
       )
     }
     return (
-      <Tr key={tx['Comment']}>
+      <>
         {/* use */}
         <Td>
           <Checkbox isChecked={tx.use} onChange={onChangeCheck} />
@@ -327,14 +349,14 @@ export const App = () => {
         {/* comment */}
         <Td>
           <a
-            href={'https://xrpscan.com/tx/' + tx.Comment}
+            href={'https://xrpscan.com/tx/' + tx.Comment.split(' /')[0]}
             target="_blank"
             rel="noreferrer"
           >
             {tx.LedgerIndex} / {tx.Comment.substr(0, 7)}...
           </a>
         </Td>
-      </Tr>
+      </>
     )
   }
 
@@ -361,32 +383,44 @@ export const App = () => {
               <h2>
                 <AccordionButton>
                   <Box flex="1" textAlign="left">
-                    詳細検索
+                    詳細検索 (JST)
                   </Box>
                   <AccordionIcon />
                 </AccordionButton>
               </h2>
               <AccordionPanel pb={4}>
                 <Flex>
-                  <NumberInput mr={1} min={0}>
-                    <NumberInputField
-                      name="ledgerIndexMin"
-                      value={ledgerIndex.min || ''}
-                      onChange={handleChange}
-                      placeholder="最小レジャー番号"
-                    />
-                  </NumberInput>
+                  <Select
+                    defaultValue={ledger_data['2023-01-01']}
+                    placeholder="開始日"
+                    name="ledgerIndexMin"
+                    onChange={handleChange}
+                  >
+                    {ledger_data_keys.map((key) => (
+                      <option key={key} value={ledger_data[key]}>
+                        {key}
+                      </option>
+                    ))}
+                  </Select>
                   <chakra.div pt="2">
                     <chakra.span verticalAlign="baseline">〜</chakra.span>
                   </chakra.div>
-                  <NumberInput ml={1} min={0}>
-                    <NumberInputField
-                      name="ledgerIndexMax"
-                      value={ledgerIndex.max || ''}
-                      onChange={handleChange}
-                      placeholder="最大レジャー番号"
-                    />
-                  </NumberInput>
+                  <Select
+                    defaultValue={ledger_data['2024-01-01']}
+                    placeholder="終了日"
+                    name="ledgerIndexMax"
+                    onChange={handleChange}
+                  >
+                    {ledger_data_keys.slice(1).map((key) => {
+                      const displayDate = new Date(key)
+                      displayDate.setDate(displayDate.getDate() - 1)
+                      return (
+                        <option key={key} value={ledger_data[key]}>
+                          {displayDate.toISOString().split('T')[0]}
+                        </option>
+                      )
+                    })}
+                  </Select>
                 </Flex>
               </AccordionPanel>
             </AccordionItem>
@@ -435,7 +469,7 @@ export const App = () => {
         </Center>
         {/* 取引履歴 */}
         <Stack pt="6" minHeight="400px" w="100%">
-          <Table
+          {/* <Table
             size={1440 > winWidth ? 'xs' : 'md'}
             fontSize="12"
             variant="striped"
@@ -444,12 +478,37 @@ export const App = () => {
             <Tbody>
               {dispAccountTx.map((tx) => {
                 return <TableContent tx={tx} key={tx.Comment} />
-              })}
+              })} 
             </Tbody>
-          </Table>
+          </Table> */}
+          <TableVirtuoso
+            ref={ref}
+            style={{ height: 800 } as any}
+            components={{
+              Table: ({ style, children, ...props }) => (
+                <Table
+                  {...props}
+                  size={1440 > winWidth ? 'xs' : 'md'}
+                  fontSize="12"
+                  variant="striped"
+                  style={{ ...style, width: 700 }}
+                >
+                  {children}
+                </Table>
+              ),
+              // TableBody: (props) => <Tbody {...props} />,
+              TableHead: Thead,
+              TableRow: Tr,
+            }}
+            fixedHeaderContent={() => <TableHeader />}
+            data={dispAccountTx}
+            maxLength={dispAccountTx.length}
+            itemContent={(_, tx) => <TableContent tx={tx} key={tx.Comment} />}
+          />
         </Stack>
         <Footer />
       </Container>
+      {dispAccountTx.length}
     </ChakraProvider>
   )
 }

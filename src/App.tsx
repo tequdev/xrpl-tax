@@ -391,7 +391,7 @@ export const App = () => {
               <AccordionPanel pb={4}>
                 <Flex>
                   <Select
-                    defaultValue={ledger_data['2023-01-01']}
+                    defaultValue={ledger_data['2024-01-01']}
                     placeholder="開始日"
                     name="ledgerIndexMin"
                     onChange={handleChange}
@@ -406,7 +406,7 @@ export const App = () => {
                     <chakra.span verticalAlign="baseline">〜</chakra.span>
                   </chakra.div>
                   <Select
-                    defaultValue={ledger_data['2024-01-01']}
+                    defaultValue={'-1'}
                     placeholder="終了日"
                     name="ledgerIndexMax"
                     onChange={handleChange}
@@ -420,6 +420,9 @@ export const App = () => {
                         </option>
                       )
                     })}
+                    <option key="-1" value="-1">
+                      {new Date().toISOString().split('T')[0]}(最新)
+                    </option>
                   </Select>
                 </Flex>
               </AccordionPanel>

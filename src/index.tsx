@@ -5,14 +5,14 @@ import { App } from "./App"
 import { HtmlHeader } from "./HtmlHeader"
 import reportWebVitals from "./reportWebVitals"
 import * as serviceWorker from "./serviceWorker"
-import { Analytics } from '@vercel/analytics/react'
+// import { Analytics } from '@vercel/analytics/react'
 
 ReactDOM.render(
   <React.StrictMode>
     <ColorModeScript />
     <HtmlHeader />
     <App />
-    <Analytics />
+    {/* <Analytics /> */}
   </React.StrictMode>,
   document.getElementById("root"),
 )

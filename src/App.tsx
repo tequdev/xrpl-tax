@@ -103,8 +103,9 @@ export const App = () => {
   }, [])
 
   const handleClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
-    localStorage.setItem(localStrageAddressKey, searchAddress)
-    await searchTx()
+    alert('現在利用できません。')
+    // localStorage.setItem(localStrageAddressKey, searchAddress)
+    // await searchTx()
   }
 
   const searchTx = async () => {

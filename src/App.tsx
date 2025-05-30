@@ -227,7 +227,7 @@ export const App = () => {
         tx.Counter === 'JPY' ? 'XRP' : `${tx.Counter}`.split('.').join('_')
       const timestamp = `${tx.ts}`
       const response = await fetch(
-        `https://data.xrplf.org/v1/iou/exchange_rates/${base}/${counter}?date=${timestamp}`
+        `https://xrpldata.inftf.org/v1/iou/exchange_rates/${base}/${counter}?date=${timestamp}`
       )
       const data = await response.json()
       if (!data.rate) {
